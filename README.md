@@ -18,10 +18,11 @@ npm run dev
 ```
 
 Then open the local URL printed by Vite. Load the included downtown Oakland trace,
-or click points onto the map, and choose **Run local match**.
+or click points onto the map, and choose **Call matcher API**.
 
-The project index is at `/`; the matcher is at `/map-match-v1/`. The included
-example and initial map view are centered on downtown Oakland.
+The project index is at `/`; the map is at `/map-match-v1/`; and the JSON
+request console/page endpoint is at `/map-match-api-v1/`. The included example
+and initial map view are centered on downtown Oakland.
 
 ## What happens in the browser
 
@@ -36,6 +37,56 @@ The blue selected-road overlay is trimmed around its matched positions by
 default. This only removes distracting portions of long vector-tile features
 from the display—it does not infer intersections or change the matcher. Disable
 **Trim display edges** to inspect the original Protomaps feature geometry.
+
+## Page-backed API
+
+The visual map no longer invokes the matcher directly. It loads
+`/map-match-api-v1/` in a hidden iframe and exchanges versioned messages using
+`window.postMessage`. The endpoint page owns the PMTiles reads, candidate
+matching, cache, and response serialization, so the same page can be embedded
+by another frontend without an application server.
+
+Requests use this shape:
+
+```json
+{
+  "coordinates": [[-122.2727, 37.8009], [-122.27115, 37.8044]],
+  "options": {
+    "radiusMeters": 70,
+    "candidateCount": 6,
+    "sequenceAware": true,
+    "edgePaddingMeters": 0
+  }
+}
+```
+
+Responses identify `probes`, `edges`, and `nodes`, plus GeoJSON
+`render.edges` and `render.matches` FeatureCollections. Each edge has explicit
+`startNode` and `endNode` fields. Those nodes are deliberately labeled
+`fragment_endpoint` with `intersectionInferred: false`: they are stable output
+endpoints, not a claim that the basemap contains routing topology.
+
+The response also includes `route.edgeSequence`, an ordered, de-duplicated list
+of selected edge IDs. `route.connectivityVerified` remains `false` because the
+basemap geometry has not been promoted into a routing graph.
+
+An embedding page sends this message to the endpoint iframe:
+
+```js
+iframe.contentWindow.postMessage(
+  {
+    type: "stateless-router:match:v1",
+    id: "request-1",
+    request: { coordinates, options },
+  },
+  new URL(iframe.src).origin,
+);
+```
+
+The endpoint replies with `stateless-router:progress:v1`, followed by either
+`stateless-router:response:v1` or `stateless-router:error:v1` using the same
+request ID. Because this is a static page protocol rather than an HTTP server,
+it is consumed through an iframe—not with `curl` or a server-side POST.
 
 This is HMM-shaped rather than a calibrated probabilistic HMM: its emission and
 transition values are hand-tuned costs. One-way candidates use the direction of

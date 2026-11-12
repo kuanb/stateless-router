@@ -10,11 +10,10 @@ import type {
   StyleSpecification,
 } from "maplibre-gl";
 import { PMTiles, Protocol } from "pmtiles";
-import { DEMO_TRACE, PMTILES_URL, TILE_ZOOM } from "./config";
+import type { MapMatchResponse } from "./api-types";
+import { DEMO_TRACE, PMTILES_URL } from "./config";
 import type { LngLat } from "./geo";
-import { matchTrace, type MatchResult } from "./matcher";
-import { selectedRoadFragments } from "./road-fragments";
-import { ProtomapsRoadSource, type RoadFetchResult } from "./road-source";
+import { MapMatchPageClient } from "./map-match-page-client";
 
 type InteractionMode = "draw" | "pan";
 
@@ -46,7 +45,9 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol("pmtiles", protocol.tile);
 const archive = new PMTiles(PMTILES_URL);
 protocol.add(archive);
-const roadSource = new ProtomapsRoadSource(archive, TILE_ZOOM);
+const matcherApi = new MapMatchPageClient(
+  new URL("../map-match-api-v1/", window.location.href),
+);
 
 const style: StyleSpecification = {
   version: 8,
@@ -80,11 +81,7 @@ let observations: LngLat[] = [];
 let mode: InteractionMode = "draw";
 let mapReady = false;
 let running = false;
-let lastResult: {
-  match: MatchResult;
-  fetch: RoadFetchResult;
-  elapsedMs: number;
-} | null = null;
+let lastResult: MapMatchResponse | null = null;
 
 const emptyCollection = (): GeoJSON.FeatureCollection => ({ type: "FeatureCollection", features: [] });
 
@@ -133,7 +130,7 @@ function updateRawTrace(announce = true): void {
     if (observations.length < 2) {
       setStatus("Add at least two observations or load the example.");
     } else {
-      setStatus(`${observations.length} observations ready. Run the local matcher.`);
+      setStatus(`${observations.length} observations ready. Call the browser endpoint.`);
     }
   }
 }
@@ -158,56 +155,41 @@ function fitObservations(): void {
   });
 }
 
-function showResult(match: MatchResult, fetch: RoadFetchResult, totalElapsedMs: number): void {
-  const successful = match.matches.filter((item) => item !== null);
-  const matchFeatures: GeoJSON.Feature[] = [];
-  let block: LngLat[] = [];
+function showResult(response: MapMatchResponse): void {
+  const edgeFeatures: GeoJSON.Feature<GeoJSON.LineString>[] = response.edges.map((edge) => ({
+    type: "Feature",
+    id: edge.id,
+    properties: {
+      edge_id: edge.id,
+      start_node: edge.startNode,
+      end_node: edge.endNode,
+      direction: edge.direction,
+      geometry_order: edge.geometryOrder,
+      ...edge.properties,
+    },
+    geometry: trimEdgesInput.checked ? edge.geometry : edge.sourceGeometry,
+  }));
 
-  const flushBlock = (): void => {
-    if (block.length > 1) matchFeatures.push(lineFeature(block, { kind: "matched" }));
-    block = [];
-  };
+  getSource("matched-trace")?.setData(response.render.matches);
+  getSource("selected-roads")?.setData({ type: "FeatureCollection", features: edgeFeatures });
 
-  match.matches.forEach((item) => {
-    if (!item) {
-      flushBlock();
-      return;
-    }
-    block.push(item.candidate.point);
-    matchFeatures.push({
-      type: "Feature",
-      properties: {
-        error: item.candidate.distance,
-        road: item.candidate.road.kindDetail,
-      },
-      geometry: { type: "Point", coordinates: item.candidate.point },
-    });
-  });
-  flushBlock();
-
-  const roadFeatures = selectedRoadFragments(match, trimEdgesInput.checked).map((fragment) =>
-    lineFeature(fragment.coordinates, {
-      kind: fragment.road.kind,
-      detail: fragment.road.kindDetail,
-    }),
-  );
-
-  getSource("matched-trace")?.setData({ type: "FeatureCollection", features: matchFeatures });
-  getSource("selected-roads")?.setData({ type: "FeatureCollection", features: roadFeatures });
-
-  $("#matched-metric").textContent = `${successful.length}/${observations.length}`;
-  $("#error-metric").textContent = `${match.meanErrorMeters.toFixed(1)} m`;
-  $("#tiles-metric").textContent = String(fetch.tileCount);
-  $("#time-metric").textContent = `${Math.round(totalElapsedMs)} ms`;
-  $("#result-mode").textContent = sequenceInput.checked ? "sequence-aware" : "nearest";
+  $("#matched-metric").textContent = `${response.stats.matched}/${response.stats.total}`;
+  $("#error-metric").textContent = `${response.stats.meanErrorMeters.toFixed(1)} m`;
+  $("#tiles-metric").textContent = String(response.stats.tilesRequested);
+  $("#time-metric").textContent = `${Math.round(response.stats.elapsedMs)} ms`;
+  $("#result-mode").textContent = response.request.options.sequenceAware
+    ? "sequence-aware"
+    : "nearest";
   results.hidden = false;
 
-  const cacheMessage = fetch.cacheHits > 0 ? ` · ${fetch.cacheHits} tile cache hits` : "";
+  const cacheMessage = response.stats.tileCacheHits > 0
+    ? ` · ${response.stats.tileCacheHits} tile cache hits`
+    : "";
   setStatus(
-    `Matched ${successful.length} of ${observations.length} observations against ${fetch.roads.length.toLocaleString()} road lines${cacheMessage}.`,
-    successful.length === observations.length ? "success" : "normal",
+    `API returned ${response.edges.length} edges and ${response.nodes.length} endpoint nodes for ${response.stats.matched}/${response.stats.total} probes${cacheMessage}.`,
+    response.stats.matched === response.stats.total ? "success" : "normal",
   );
-  lastResult = { match, fetch, elapsedMs: totalElapsedMs };
+  lastResult = response;
 }
 
 async function runMatch(): Promise<void> {
@@ -216,26 +198,25 @@ async function runMatch(): Promise<void> {
   runButton.disabled = true;
   undoButton.disabled = true;
   runButton.classList.add("loading");
-  runButton.querySelector("span")!.textContent = "Fetching road tiles";
+  runButton.querySelector("span")!.textContent = "Calling browser API";
   clearResultLayers();
 
-  const started = performance.now();
   const radiusMeters = Number(snapRadiusInput.value);
 
   try {
-    const fetched = await roadSource.roadsAround(
-      observations,
-      radiusMeters,
-      (finished, total) => setStatus(`Range-reading z${TILE_ZOOM} road tiles · ${finished}/${total}`),
+    const response = await matcherApi.match(
+      {
+        coordinates: observations,
+        options: {
+          radiusMeters,
+          candidateCount: Number(candidateCountInput.value),
+          sequenceAware: sequenceInput.checked,
+          edgePaddingMeters: 32,
+        },
+      },
+      (progress) => setStatus(progress.message),
     );
-    setStatus(`Testing candidates across ${fetched.roads.length.toLocaleString()} decoded road lines…`);
-
-    const match = matchTrace(observations, fetched.roads, {
-      radiusMeters,
-      candidateCount: Number(candidateCountInput.value),
-      sequenceAware: sequenceInput.checked,
-    });
-    showResult(match, fetched, performance.now() - started);
+    showResult(response);
   } catch (error) {
     console.error(error);
     setStatus(
@@ -245,7 +226,7 @@ async function runMatch(): Promise<void> {
   } finally {
     running = false;
     runButton.classList.remove("loading");
-    runButton.querySelector("span")!.textContent = "Run local match";
+    runButton.querySelector("span")!.textContent = "Call matcher API";
     updateRawTrace(false);
   }
 }
@@ -367,8 +348,12 @@ candidateCountInput.addEventListener("input", () => {
 
 trimEdgesInput.addEventListener("change", () => {
   if (lastResult) {
-    showResult(lastResult.match, lastResult.fetch, lastResult.elapsedMs);
+    showResult(lastResult);
   }
+});
+
+window.addEventListener("pagehide", (event) => {
+  if (!event.persisted) matcherApi.dispose();
 });
 
 window.addEventListener("keydown", (event) => {

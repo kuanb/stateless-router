@@ -40,9 +40,9 @@
             <div class="eyebrow">Map match / v0.1</div>
             <h1>Match a trace.<br />Keep no graph.</h1>
             <p class="intro">
-              Your browser range-fetches nearby Protomaps tiles, decodes the
-              road lines, and snaps this trace locally. Nothing is sent to an
-              application server.
+              This page sends coordinates to a hidden browser endpoint. That
+              service range-fetches Protomaps, performs the match, and returns
+              render-ready JSON—without an application server.
             </p>
 
             <div class="workflow" aria-label="Demo workflow">
@@ -100,7 +100,7 @@
             </section>
 
             <button id="run-match" class="button primary" type="button" disabled>
-              <span>Run local match</span>
+              <span>Call matcher API</span>
               <span aria-hidden="true">→</span>
             </button>
 
@@ -128,7 +128,8 @@
                 matching work against an ordinary Protomaps archive. It uses
                 declared one-way direction, but does not reconstruct
                 connectivity, obey turns, or guarantee legal travel. Edge
-                trimming is visual cleanup, not inferred routing topology.
+                endpoints are explicit but synthetic; trimming is visual
+                cleanup, not inferred routing topology.
               </p>
             </details>
           </div>
@@ -138,10 +139,8 @@
               <span aria-hidden="true">×</span> Clear trace
             </button>
             <a
-              href="https://docs.protomaps.com/pmtiles/"
-              target="_blank"
-              rel="noreferrer"
-            >PMTiles source ↗</a>
+              href="../map-match-api-v1/"
+            >JSON endpoint ↗</a>
           </footer>
         </aside>
 

@@ -115,8 +115,10 @@ export function selectedRoadFragments(
     const positions = candidates.map((candidate) =>
       candidateDistance(candidate, cumulative, road.coordinates),
     );
-    const start = Math.max(0, Math.min(...positions) - paddingMeters);
-    const end = Math.min(totalLength, Math.max(...positions) + paddingMeters);
+    const effectivePadding =
+      positions.length === 1 ? Math.max(paddingMeters, 8) : paddingMeters;
+    const start = Math.max(0, Math.min(...positions) - effectivePadding);
+    const end = Math.min(totalLength, Math.max(...positions) + effectivePadding);
     const coordinates = sliceLine(road.coordinates, cumulative, start, end);
     if (coordinates.length >= 2) fragments.push({ road, coordinates });
   }

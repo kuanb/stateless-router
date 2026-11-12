@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A static, browser-only JSON interface for Protomaps map matching."
+    />
+    <title>Map Match API v1 — Stateless Router</title>
+  </head>
+  <body>
+    <main class="api-shell">
+      <header class="api-header">
+        <a class="api-wordmark" href="../">
+          <span>SR</span>
+          <b>stateless-router</b>
+        </a>
+        <nav>
+          <a href="../map-match-v1/">Map demo</a>
+          <span class="live-badge"><i></i> static endpoint online</span>
+        </nav>
+      </header>
+
+      <section class="api-hero">
+        <div>
+          <p class="api-eyebrow">Experiment 02 / page-backed RPC</p>
+          <h1>Coordinates in.<br />Renderable JSON out.</h1>
+        </div>
+        <p class="api-lede">
+          This page is both a request console and a client-side service. It
+          accepts probe coordinates, range-reads nearby Protomaps tiles, and
+          returns matched probes plus explicit edge and endpoint-node geometry.
+        </p>
+      </section>
+
+      <section class="console-grid">
+        <article class="console-card request-card">
+          <div class="card-heading">
+            <div>
+              <span>Request</span>
+              <h2>MapMatchRequest</h2>
+            </div>
+            <button id="reset-request" class="text-action" type="button">Reset Oakland</button>
+          </div>
+          <label for="request-json">JSON body</label>
+          <textarea id="request-json" spellcheck="false" aria-label="Map match request JSON"></textarea>
+          <button id="run-request" class="run-action" type="button">Run request →</button>
+          <p id="api-status" class="api-status" role="status" aria-live="polite">
+            Ready. Nothing leaves the browser except PMTiles byte-range reads.
+          </p>
+        </article>
+
+        <article class="console-card response-card">
+          <div class="card-heading">
+            <div>
+              <span>Response</span>
+              <h2>stateless-router/map-match/v1</h2>
+            </div>
+            <button id="copy-response" class="text-action" type="button" disabled>Copy JSON</button>
+          </div>
+          <div id="result-summary" class="result-summary" hidden>
+            <div><b id="summary-matched">—</b><span>matched</span></div>
+            <div><b id="summary-edges">—</b><span>edges</span></div>
+            <div><b id="summary-nodes">—</b><span>nodes</span></div>
+            <div><b id="summary-time">—</b><span>elapsed</span></div>
+          </div>
+          <pre id="response-json" tabindex="0">{
+  "status": "waiting_for_request"
+}</pre>
+        </article>
+      </section>
+
+      <section class="contract-grid">
+        <article>
+          <span class="contract-number">01</span>
+          <h3>Page-backed endpoint</h3>
+          <p>
+            The map demo loads this page in a hidden iframe and exchanges typed
+            request, progress, response, and error messages with
+            <code>postMessage</code>.
+          </p>
+        </article>
+        <article>
+          <span class="contract-number">02</span>
+          <h3>Renderable contract</h3>
+          <p>
+            <code>render.edges</code> and <code>render.matches</code> are GeoJSON
+            FeatureCollections. Every edge also names its start and end node.
+          </p>
+        </article>
+        <article>
+          <span class="contract-number">03</span>
+          <h3>Honest topology</h3>
+          <p>
+            Endpoint nodes are marked synthetic and edge topology is unresolved.
+            The response does not claim intersection or turn connectivity.
+          </p>
+        </article>
+      </section>
+    </main>
+    <script type="module" src="/src/api-page.ts"></script>
+  </body>
+</html>

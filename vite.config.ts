@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         home: resolve(rootDirectory, "index.html"),
         mapMatchV1: resolve(rootDirectory, "map-match-v1/index.html"),
+        mapMatchApiV1: resolve(rootDirectory, "map-match-api-v1/index.html"),
       },
     },
   },
