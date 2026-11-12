@@ -41,6 +41,7 @@ function currentRequest(): MapMatchRequest {
       candidateCount: 6,
       sequenceAware: true,
       edgePaddingMeters: 0,
+      inferRoute: true,
     },
   };
 }
@@ -54,8 +55,9 @@ function showResponse(response: MapMatchResponse): void {
   $("#try-time").textContent = `${Math.round(response.stats.elapsedMs)} ms`;
   summary.hidden = false;
   copyButton.disabled = false;
+  const unresolved = response.route.transitions.filter((transition) => !transition.resolved).length;
   setStatus(
-    `Done · ${response.edges.length} edges and ${response.nodes.length} synthetic endpoint nodes`,
+    `Done · ${response.edges.length} matched edges · ${response.inferredEdges.length} inferred connectors · ${unresolved} unresolved`,
     "success",
   );
 }

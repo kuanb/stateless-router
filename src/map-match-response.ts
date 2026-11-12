@@ -1,5 +1,6 @@
 import { PMTILES_URL, TILE_ZOOM } from "./config";
 import { bearingDegrees, bearingDifference, type LngLat } from "./geo";
+import { inferRoute } from "./local-router";
 import type { MatchResult } from "./matcher";
 import { selectedRoadFragments } from "./road-fragments";
 import type { RoadFetchResult, RoadLine } from "./road-source";
@@ -17,6 +18,7 @@ const DEFAULTS = {
   candidateCount: 6,
   sequenceAware: true,
   edgePaddingMeters: 0,
+  inferRoute: true,
 } as const;
 
 function finiteNumber(
@@ -83,6 +85,9 @@ export function resolveMapMatchRequest(input: unknown): ResolvedMapMatchRequest 
   if (options.sequenceAware !== undefined && typeof options.sequenceAware !== "boolean") {
     throw new Error("options.sequenceAware must be a boolean.");
   }
+  if (options.inferRoute !== undefined && typeof options.inferRoute !== "boolean") {
+    throw new Error("options.inferRoute must be a boolean.");
+  }
 
   return {
     coordinates: request.coordinates.map(coordinate),
@@ -96,6 +101,7 @@ export function resolveMapMatchRequest(input: unknown): ResolvedMapMatchRequest 
       ),
       candidateCount,
       sequenceAware: options.sequenceAware ?? DEFAULTS.sequenceAware,
+      inferRoute: options.inferRoute ?? DEFAULTS.inferRoute,
       edgePaddingMeters: finiteNumber(
         options.edgePaddingMeters,
         DEFAULTS.edgePaddingMeters,
@@ -188,6 +194,9 @@ export function buildMapMatchResponse(
     true,
     request.options.edgePaddingMeters,
   );
+  const inferredRoute = request.options.inferRoute
+    ? inferRoute(match, fetch.roads, fragments)
+    : { edges: [], transitions: [], geometry: null, distanceMeters: 0 };
   const nodesById = new Map<string, ApiNode>();
   const edgeIdByRoad = new Map<string, string>();
 
@@ -253,6 +262,30 @@ export function buildMapMatchResponse(
     };
   });
 
+  const inferredEdges = inferredRoute.edges.map((edge) => {
+    const start = edge.geometry.coordinates[0] as LngLat;
+    const end = edge.geometry.coordinates[edge.geometry.coordinates.length - 1] as LngLat;
+    const startNode = nodeId(start);
+    const endNode = nodeId(end);
+    if (!nodesById.has(startNode)) {
+      nodesById.set(startNode, {
+        id: startNode,
+        coordinate: start,
+        kind: "inferred_route_endpoint",
+        intersectionInferred: false,
+      });
+    }
+    if (!nodesById.has(endNode)) {
+      nodesById.set(endNode, {
+        id: endNode,
+        coordinate: end,
+        kind: "inferred_route_endpoint",
+        intersectionInferred: false,
+      });
+    }
+    return { ...edge, startNode, endNode };
+  });
+
   const probes: ApiProbeMatch[] = match.matches.map((matched, index) => ({
     index,
     input: request.coordinates[index] as LngLat,
@@ -281,12 +314,39 @@ export function buildMapMatchResponse(
     probes,
     nodes: [...nodesById.values()],
     edges,
+    inferredEdges,
     route: {
       edgeSequence,
+      inferredEdgeSequence: inferredEdges.map((edge) => edge.id),
       connectivityVerified: false,
+      connectivityInferred:
+        inferredRoute.transitions.length > 0 &&
+        inferredRoute.transitions.every((transition) => transition.resolved),
+      distanceMeters: inferredRoute.distanceMeters,
+      geometry: inferredRoute.geometry,
+      transitions: inferredRoute.transitions,
     },
     render: {
       edges: { type: "FeatureCollection", features: edges.map(edgeFeature) },
+      inferredEdges: {
+        type: "FeatureCollection",
+        features: inferredEdges.map((edge) => ({
+          type: "Feature",
+          id: edge.id,
+          properties: {
+            edge_id: edge.id,
+            start_node: edge.startNode,
+            end_node: edge.endNode,
+            provenance: edge.provenance,
+            confidence: edge.confidence,
+            from_probe: edge.fromProbe,
+            to_probe: edge.toProbe,
+            distance_meters: edge.distanceMeters,
+            source_road_ids: edge.sourceRoadIds,
+          },
+          geometry: edge.geometry,
+        })),
+      },
       matches: matchFeatures(probes),
     },
     stats: {
@@ -301,6 +361,14 @@ export function buildMapMatchResponse(
     warnings: [
       "Edge endpoints are synthetic fragment endpoints, not inferred road-network intersections.",
       "This geometry-only match does not guarantee connected or legally routable travel.",
+      ...(request.options.inferRoute
+        ? [
+            "Inferred route edges come from a temporary geometry graph; they do not include turn restrictions or verified intersection topology.",
+          ]
+        : []),
+      ...(inferredRoute.transitions.some((transition) => !transition.resolved)
+        ? ["Some transitions could not be connected using the fetched road geometry."]
+        : []),
     ],
   };
 }

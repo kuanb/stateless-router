@@ -622,6 +622,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 .legend .raw { background: var(--accent); }
 .legend .road { background: var(--road); }
+.legend .inferred {
+  background: repeating-linear-gradient(
+    90deg,
+    #8b5cc7 0 4px,
+    transparent 4px 6px
+  );
+}
 .legend .match { background: var(--match); }
 
 .maplibregl-ctrl-bottom-right {

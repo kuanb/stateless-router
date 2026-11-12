@@ -73,6 +73,7 @@ test("serializes matched fragments as renderable edges with explicit endpoint no
 
   assert.equal(response.schema, "stateless-router/map-match/v1");
   assert.equal(response.edges.length, 1);
+  assert.equal(response.inferredEdges.length, 0);
   assert.equal(response.nodes.length, 2);
   assert.equal(response.edges[0]?.direction, "forward");
   assert.equal(response.edges[0]?.geometryOrder, "matched_travel");
@@ -86,8 +87,78 @@ test("serializes matched fragments as renderable edges with explicit endpoint no
   assert.equal(response.probes[0]?.edgeId, response.edges[0]?.id);
   assert.equal(response.probes[1]?.edgeId, response.edges[0]?.id);
   assert.deepEqual(response.route.edgeSequence, [response.edges[0]?.id]);
+  assert.deepEqual(response.route.inferredEdgeSequence, []);
+  assert.equal(response.route.connectivityInferred, true);
   assert.equal(response.route.connectivityVerified, false);
   assert.equal(response.render.edges.features[0]?.properties?.start_node, response.edges[0]?.startNode);
+  assert.equal(response.render.inferredEdges.features.length, 0);
+});
+
+test("serializes inferred connectors separately with endpoint nodes and provenance", () => {
+  const northRoad: RoadLine = {
+    ...selectedRoad,
+    id: "north-road",
+    continuityKey: "residential:North Road",
+    coordinates: [[0, 0], [0, 0.001]],
+    properties: { ...selectedRoad.properties, name: "North Road", oneway: null },
+  };
+  const eastRoad: RoadLine = {
+    ...selectedRoad,
+    id: "east-road",
+    continuityKey: "residential:East Road",
+    coordinates: [[-0.001, 0.0005], [0.001, 0.0005]],
+    properties: { ...selectedRoad.properties, name: "East Road", oneway: null },
+  };
+  const first: LngLat = [0, 0.0004];
+  const second: LngLat = [0.0006, 0.0005];
+  const request = resolveMapMatchRequest({ coordinates: [first, second] });
+  const match: MatchResult = {
+    matches: [
+      {
+        observationIndex: 0,
+        observation: first,
+        candidate: {
+          ...candidate(0, first, 0.4),
+          road: northRoad,
+          bearing: 0,
+          travelBearing: 0,
+        },
+      },
+      {
+        observationIndex: 1,
+        observation: second,
+        candidate: {
+          ...candidate(1, second, 0.8),
+          road: eastRoad,
+        },
+      },
+    ],
+    selectedRoads: [northRoad, eastRoad],
+    meanErrorMeters: 0,
+  };
+  const fetched: RoadFetchResult = {
+    roads: [northRoad, eastRoad],
+    tileCount: 1,
+    decodedTiles: 1,
+    cacheHits: 0,
+    elapsedMs: 1,
+  };
+
+  const response = buildMapMatchResponse(request, match, fetched, 2);
+
+  assert.equal(response.inferredEdges.length, 1);
+  assert.equal(response.inferredEdges[0]?.provenance, "inferred_transition");
+  assert.equal(response.inferredEdges[0]?.confidence, "geometry_only");
+  assert.ok(response.inferredEdges[0]?.startNode);
+  assert.ok(response.inferredEdges[0]?.endNode);
+  assert.equal(
+    response.nodes.some((node) => node.kind === "inferred_route_endpoint"),
+    true,
+  );
+  assert.equal(
+    response.render.inferredEdges.features[0]?.properties?.provenance,
+    "inferred_transition",
+  );
 });
 
 test("validates the page API request before fetching tiles", () => {
@@ -105,5 +176,16 @@ test("validates the page API request before fetching tiles", () => {
         options: { radiusMeters: 0 },
       }),
     /radiusMeters/,
+  );
+  assert.throws(
+    () =>
+      resolveMapMatchRequest({
+        coordinates: [
+          [-122.27, 37.8],
+          [-122.26, 37.81],
+        ],
+        options: { inferRoute: "sometimes" },
+      }),
+    /inferRoute/,
   );
 });

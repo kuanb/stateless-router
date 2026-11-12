@@ -5,6 +5,7 @@ export interface MapMatchRequestOptions {
   candidateCount?: number;
   sequenceAware?: boolean;
   edgePaddingMeters?: number;
+  inferRoute?: boolean;
 }
 
 export interface MapMatchRequest {
@@ -27,7 +28,7 @@ export interface MapMatchProgress {
 export interface ApiNode {
   id: string;
   coordinate: LngLat;
-  kind: "fragment_endpoint";
+  kind: "fragment_endpoint" | "inferred_route_endpoint";
   intersectionInferred: false;
 }
 
@@ -63,6 +64,26 @@ export interface ApiProbeMatch {
   travelBearing: number | null;
 }
 
+export interface ApiInferredEdge {
+  id: string;
+  startNode: string;
+  endNode: string;
+  fromProbe: number;
+  toProbe: number;
+  distanceMeters: number;
+  sourceRoadIds: string[];
+  provenance: "inferred_transition";
+  confidence: "geometry_only";
+  geometry: GeoJSON.LineString;
+}
+
+export interface ApiRouteTransition {
+  fromProbe: number;
+  toProbe: number;
+  resolved: boolean;
+  distanceMeters: number | null;
+}
+
 export interface MapMatchResponse {
   schema: "stateless-router/map-match/v1";
   request: ResolvedMapMatchRequest;
@@ -74,12 +95,19 @@ export interface MapMatchResponse {
   probes: ApiProbeMatch[];
   nodes: ApiNode[];
   edges: ApiEdge[];
+  inferredEdges: ApiInferredEdge[];
   route: {
     edgeSequence: string[];
+    inferredEdgeSequence: string[];
     connectivityVerified: false;
+    connectivityInferred: boolean;
+    distanceMeters: number;
+    geometry: GeoJSON.MultiLineString | null;
+    transitions: ApiRouteTransition[];
   };
   render: {
     edges: GeoJSON.FeatureCollection<GeoJSON.LineString>;
+    inferredEdges: GeoJSON.FeatureCollection<GeoJSON.LineString>;
     matches: GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Point>;
   };
   stats: {

@@ -36,6 +36,7 @@ const exampleRequest: MapMatchRequest = {
     candidateCount: 6,
     sequenceAware: true,
     edgePaddingMeters: 0,
+    inferRoute: true,
   },
 };
 
@@ -57,8 +58,9 @@ function showResponse(response: MapMatchResponse): void {
   $("#summary-time").textContent = `${Math.round(response.stats.elapsedMs)} ms`;
   resultSummary.hidden = false;
   copyButton.disabled = false;
+  const unresolved = response.route.transitions.filter((transition) => !transition.resolved).length;
   setStatus(
-    `200-like response · ${response.edges.length} edges · ${response.nodes.length} endpoint nodes`,
+    `200-like response · ${response.edges.length} matched edges · ${response.inferredEdges.length} inferred connectors · ${unresolved} unresolved`,
     "success",
   );
 }

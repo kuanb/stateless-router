@@ -97,6 +97,15 @@
                 <input id="trim-edges" type="checkbox" checked />
                 <i aria-hidden="true"></i>
               </label>
+
+              <label class="toggle-row" for="infer-route">
+                <span>
+                  <b>Infill route gaps</b>
+                  <small>Route between matches on a temporary local graph</small>
+                </span>
+                <input id="infer-route" type="checkbox" checked />
+                <i aria-hidden="true"></i>
+              </label>
             </section>
 
             <button id="run-match" class="button primary" type="button" disabled>
@@ -126,10 +135,10 @@
               <p>
                 The demo proves sparse browser reads and local candidate
                 matching work against an ordinary Protomaps archive. It uses
-                declared one-way direction, but does not reconstruct
-                connectivity, obey turns, or guarantee legal travel. Edge
-                endpoints are explicit but synthetic; trimming is visual
-                cleanup, not inferred routing topology.
+                declared one-way direction, but does not reconstruct full
+                topology or turn restrictions. Dashed purple segments are
+                shortest paths on a temporary graph inferred from nearby road
+                geometry—not direct probe matches or guaranteed legal travel.
               </p>
             </details>
           </div>
@@ -147,6 +156,7 @@
         <div class="legend" aria-label="Map legend">
           <span><i class="raw"></i> observations</span>
           <span><i class="road"></i> selected roads</span>
+          <span><i class="inferred"></i> inferred route</span>
           <span><i class="match"></i> matched trace</span>
         </div>
       </main>

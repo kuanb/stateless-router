@@ -85,16 +85,18 @@
           <span class="contract-number">02</span>
           <h3>Renderable contract</h3>
           <p>
-            <code>render.edges</code> and <code>render.matches</code> are GeoJSON
-            FeatureCollections. Every edge also names its start and end node.
+            <code>render.edges</code>, <code>render.inferredEdges</code>, and
+            <code>render.matches</code> are GeoJSON FeatureCollections. Direct
+            matches and geometry-inferred connectors remain separate.
           </p>
         </article>
         <article>
           <span class="contract-number">03</span>
           <h3>Honest topology</h3>
           <p>
-            Endpoint nodes are marked synthetic and edge topology is unresolved.
-            The response does not claim intersection or turn connectivity.
+            Endpoint nodes are marked synthetic. Inferred connectors use a
+            temporary geometry graph and never claim turn-restriction or
+            authoritative intersection topology.
           </p>
         </article>
       </section>

@@ -5,8 +5,9 @@ PMTiles archive. The app range-fetches z15 vector tiles around a trace, decodes
 the `roads` layer, generates nearby road candidates, and chooses a locally
 consistent sequence of snaps.
 
-It intentionally does **not** pretend the cartographic tiles are a routing
-graph. There is no reconstructed connectivity, turn restriction handling, or
+It builds an ephemeral geometry graph from the fetched road lines to infer
+short connectors between direct matches. That graph is deliberately kept
+separate from authoritative routing: there is no turn-restriction handling or
 legal-route guarantee. The demo is for testing how far geometry-only matching
 can go before a graph-specific archive is necessary.
 
@@ -33,11 +34,20 @@ are centered on downtown Oakland.
 4. Each observation gets distance- and heading-scored road candidates.
 5. A Viterbi-style dynamic program penalizes implausible distance, road,
    direction, and U-turn transitions between successive snaps.
+6. A temporary directed graph splits nearby roads at geometric crossings and
+   runs shortest paths between successive matched probes. Uncovered portions
+   are returned separately as geometry-only inferred connectors.
 
 The blue selected-road overlay is trimmed around its matched positions by
 default. This only removes distracting portions of long vector-tile features
 from the display—it does not infer intersections or change the matcher. Disable
 **Trim display edges** to inspect the original Protomaps feature geometry.
+
+Dashed purple segments are `inferredEdges`: paths needed to connect successive
+matches but not directly supported by the matched-probe extent. Disable
+**Infill route gaps** to return only direct matches. This post-match routing is
+preferable to inserting straight-line synthetic probes every 10 metres, which
+can cut corners and snap onto roads the vehicle never used.
 
 ## Page-backed API
 
@@ -56,20 +66,26 @@ Requests use this shape:
     "radiusMeters": 70,
     "candidateCount": 6,
     "sequenceAware": true,
-    "edgePaddingMeters": 0
+    "edgePaddingMeters": 0,
+    "inferRoute": true
   }
 }
 ```
 
-Responses identify `probes`, `edges`, and `nodes`, plus GeoJSON
-`render.edges` and `render.matches` FeatureCollections. Each edge has explicit
-`startNode` and `endNode` fields. Those nodes are deliberately labeled
-`fragment_endpoint` with `intersectionInferred: false`: they are stable output
-endpoints, not a claim that the basemap contains routing topology.
+Responses identify `probes`, direct-match `edges`, geometry-only
+`inferredEdges`, and `nodes`, plus GeoJSON `render.edges`,
+`render.inferredEdges`, and `render.matches` FeatureCollections. Every direct
+and inferred edge has explicit `startNode` and `endNode` fields. Nodes are
+labeled as `fragment_endpoint` or `inferred_route_endpoint`, always with
+`intersectionInferred: false`: they are stable output endpoints, not a claim
+that the basemap contains authoritative routing topology.
 
-The response also includes `route.edgeSequence`, an ordered, de-duplicated list
-of selected edge IDs. `route.connectivityVerified` remains `false` because the
-basemap geometry has not been promoted into a routing graph.
+The response also includes the direct `route.edgeSequence`, ordered
+`route.inferredEdgeSequence`, per-probe-pair `route.transitions`, total inferred
+distance, and a `MultiLineString` route geometry. `route.connectivityInferred`
+reports whether every transition found a path. `route.connectivityVerified`
+remains `false` because this graph is derived from cartographic geometry rather
+than authoritative routing topology.
 
 An embedding page sends this message to the endpoint iframe:
 

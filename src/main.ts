@@ -39,6 +39,7 @@ const candidateCountInput = $("#candidate-count") as HTMLInputElement;
 const candidateCountValue = $("#candidate-count-value") as HTMLOutputElement;
 const sequenceInput = $("#sequence-aware") as HTMLInputElement;
 const trimEdgesInput = $("#trim-edges") as HTMLInputElement;
+const inferRouteInput = $("#infer-route") as HTMLInputElement;
 
 const protocol = new Protocol();
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
@@ -138,6 +139,7 @@ function updateRawTrace(announce = true): void {
 function clearResultLayers(): void {
   getSource("matched-trace")?.setData(emptyCollection());
   getSource("selected-roads")?.setData(emptyCollection());
+  getSource("inferred-route")?.setData(emptyCollection());
   results.hidden = true;
   lastResult = null;
 }
@@ -172,6 +174,7 @@ function showResult(response: MapMatchResponse): void {
 
   getSource("matched-trace")?.setData(response.render.matches);
   getSource("selected-roads")?.setData({ type: "FeatureCollection", features: edgeFeatures });
+  getSource("inferred-route")?.setData(response.render.inferredEdges);
 
   $("#matched-metric").textContent = `${response.stats.matched}/${response.stats.total}`;
   $("#error-metric").textContent = `${response.stats.meanErrorMeters.toFixed(1)} m`;
@@ -185,8 +188,14 @@ function showResult(response: MapMatchResponse): void {
   const cacheMessage = response.stats.tileCacheHits > 0
     ? ` · ${response.stats.tileCacheHits} tile cache hits`
     : "";
+  const unresolvedTransitions = response.route.transitions.filter(
+    (transition) => !transition.resolved,
+  ).length;
+  const unresolvedMessage = unresolvedTransitions > 0
+    ? ` · ${unresolvedTransitions} unresolved transition${unresolvedTransitions === 1 ? "" : "s"}`
+    : "";
   setStatus(
-    `API returned ${response.edges.length} edges and ${response.nodes.length} endpoint nodes for ${response.stats.matched}/${response.stats.total} probes${cacheMessage}.`,
+    `API returned ${response.edges.length} matched edges and ${response.inferredEdges.length} inferred connectors for ${response.stats.matched}/${response.stats.total} probes${unresolvedMessage}${cacheMessage}.`,
     response.stats.matched === response.stats.total ? "success" : "normal",
   );
   lastResult = response;
@@ -212,6 +221,7 @@ async function runMatch(): Promise<void> {
           candidateCount: Number(candidateCountInput.value),
           sequenceAware: sequenceInput.checked,
           edgePaddingMeters: 0,
+          inferRoute: inferRouteInput.checked,
         },
       },
       (progress) => setStatus(progress.message),
@@ -235,6 +245,7 @@ map.on("load", () => {
   mapReady = true;
   map.addSource("raw-trace", { type: "geojson", data: emptyCollection() });
   map.addSource("selected-roads", { type: "geojson", data: emptyCollection() });
+  map.addSource("inferred-route", { type: "geojson", data: emptyCollection() });
   map.addSource("matched-trace", { type: "geojson", data: emptyCollection() });
 
   const firstSymbol = map.getStyle().layers.find((layer) => layer.type === "symbol")?.id;
@@ -247,6 +258,20 @@ map.on("load", () => {
         "line-color": "#235b89",
         "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2, 16, 7],
         "line-opacity": 0.8,
+      },
+    },
+    firstSymbol,
+  );
+  map.addLayer(
+    {
+      id: "inferred-route",
+      type: "line",
+      source: "inferred-route",
+      paint: {
+        "line-color": "#8b5cc7",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2.5, 16, 5.5],
+        "line-dasharray": [1.4, 1.2],
+        "line-opacity": 0.95,
       },
     },
     firstSymbol,
