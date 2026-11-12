@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A browser-only geometry map matcher backed by Protomaps PMTiles."
+    />
+    <title>Map Match v1 — Stateless Router</title>
+  </head>
+  <body>
+    <div id="app">
+      <main class="map-shell">
+        <div id="map" aria-label="Interactive map matching canvas"></div>
+
+        <header class="map-header">
+          <a class="wordmark" href="../" aria-label="Back to Stateless Router home">
+            <span class="wordmark-mark" aria-hidden="true">SR</span>
+            <span>stateless-router</span>
+          </a>
+          <div class="runtime-badge"><i></i> browser only</div>
+        </header>
+
+        <div class="map-mode" role="group" aria-label="Map interaction mode">
+          <button id="draw-mode" class="mode-button active" type="button">
+            <span aria-hidden="true">＋</span> Add points
+          </button>
+          <button id="pan-mode" class="mode-button" type="button">
+            <span aria-hidden="true">✥</span> Explore map
+          </button>
+        </div>
+
+        <div id="map-hint" class="map-hint">
+          Click along a road to sketch a noisy trace
+        </div>
+
+        <aside class="panel" aria-label="Map matching controls">
+          <div class="panel-scroll">
+            <div class="eyebrow">Map match / v0.1</div>
+            <h1>Match a trace.<br />Keep no graph.</h1>
+            <p class="intro">
+              Your browser range-fetches nearby Protomaps tiles, decodes the
+              road lines, and snaps this trace locally. Nothing is sent to an
+              application server.
+            </p>
+
+            <div class="workflow" aria-label="Demo workflow">
+              <div class="workflow-step active"><b>1</b><span>Draw</span></div>
+              <i></i>
+              <div class="workflow-step"><b>2</b><span>Fetch</span></div>
+              <i></i>
+              <div class="workflow-step"><b>3</b><span>Match</span></div>
+            </div>
+
+            <div class="action-grid">
+              <button id="load-demo" class="button secondary" type="button">
+                Load Oakland example
+              </button>
+              <button id="undo-point" class="button ghost" type="button" disabled>
+                Undo point
+              </button>
+            </div>
+
+            <section class="control-card" aria-labelledby="matcher-settings">
+              <div class="section-heading">
+                <h2 id="matcher-settings">Matcher</h2>
+                <span id="point-count">0 observations</span>
+              </div>
+
+              <label class="slider-row" for="snap-radius">
+                <span>Search radius</span>
+                <output id="snap-radius-value">70 m</output>
+              </label>
+              <input id="snap-radius" type="range" min="20" max="150" step="5" value="70" />
+
+              <label class="slider-row" for="candidate-count">
+                <span>Candidates per point</span>
+                <output id="candidate-count-value">6</output>
+              </label>
+              <input id="candidate-count" type="range" min="1" max="12" step="1" value="6" />
+
+              <label class="toggle-row" for="sequence-aware">
+                <span>
+                  <b>Sequence-aware</b>
+                  <small>Penalize jumps, wrong-way travel, and U-turns</small>
+                </span>
+                <input id="sequence-aware" type="checkbox" checked />
+                <i aria-hidden="true"></i>
+              </label>
+
+              <label class="toggle-row" for="trim-edges">
+                <span>
+                  <b>Trim display edges</b>
+                  <small>Show only probe-relevant portions of selected roads</small>
+                </span>
+                <input id="trim-edges" type="checkbox" checked />
+                <i aria-hidden="true"></i>
+              </label>
+            </section>
+
+            <button id="run-match" class="button primary" type="button" disabled>
+              <span>Run local match</span>
+              <span aria-hidden="true">→</span>
+            </button>
+
+            <div id="status" class="status" role="status" aria-live="polite">
+              Add at least two observations or load the example.
+            </div>
+
+            <section id="results" class="results" aria-labelledby="result-heading" hidden>
+              <div class="section-heading">
+                <h2 id="result-heading">Last run</h2>
+                <span id="result-mode">geometry</span>
+              </div>
+              <div class="metric-grid">
+                <div><b id="matched-metric">—</b><span>matched</span></div>
+                <div><b id="error-metric">—</b><span>mean error</span></div>
+                <div><b id="tiles-metric">—</b><span>z15 tiles</span></div>
+                <div><b id="time-metric">—</b><span>elapsed</span></div>
+              </div>
+            </section>
+
+            <details class="method-note">
+              <summary>What this proves—and what it does not</summary>
+              <p>
+                The demo proves sparse browser reads and local candidate
+                matching work against an ordinary Protomaps archive. It uses
+                declared one-way direction, but does not reconstruct
+                connectivity, obey turns, or guarantee legal travel. Edge
+                trimming is visual cleanup, not inferred routing topology.
+              </p>
+            </details>
+          </div>
+
+          <footer class="panel-footer">
+            <button id="clear-all" class="clear-button" type="button">
+              <span aria-hidden="true">×</span> Clear trace
+            </button>
+            <a
+              href="https://docs.protomaps.com/pmtiles/"
+              target="_blank"
+              rel="noreferrer"
+            >PMTiles source ↗</a>
+          </footer>
+        </aside>
+
+        <div class="legend" aria-label="Map legend">
+          <span><i class="raw"></i> observations</span>
+          <span><i class="road"></i> selected roads</span>
+          <span><i class="match"></i> matched trace</span>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
