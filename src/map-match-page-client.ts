@@ -12,6 +12,10 @@ interface PendingRequest {
   onProgress?: (progress: MapMatchProgress) => void;
 }
 
+// Bump when the page-backed service implementation changes. GitHub Pages can
+// cache HTML for ten minutes, so the iframe URL must identify its code version.
+const ENDPOINT_PAGE_VERSION = "road-fragments-v2";
+
 export class MapMatchPageClient {
   private readonly iframe: HTMLIFrameElement;
   private readonly endpointOrigin: string;
@@ -25,7 +29,10 @@ export class MapMatchPageClient {
     this.iframe = document.createElement("iframe");
     this.iframe.hidden = true;
     this.iframe.title = "Stateless Router map match service";
-    this.iframe.src = `${endpoint.href}${endpoint.search ? "&" : "?"}embedded=1`;
+    const iframeUrl = new URL(endpoint.href);
+    iframeUrl.searchParams.set("embedded", "1");
+    iframeUrl.searchParams.set("serviceVersion", ENDPOINT_PAGE_VERSION);
+    this.iframe.src = iframeUrl.href;
     this.ready = new Promise((resolve) => {
       this.resolveReady = resolve;
     });
