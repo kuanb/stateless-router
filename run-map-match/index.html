@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Paste probe coordinates and run the browser-only Protomaps map matcher."
+    />
+    <title>Try Map Match — Stateless Router</title>
+  </head>
+  <body>
+    <main class="try-shell">
+      <header>
+        <a class="try-wordmark" href="../">
+          <span>SR</span><b>stateless-router</b>
+        </a>
+        <a class="map-link" href="../map-match-v1/">Open map demo ↗</a>
+      </header>
+
+      <section class="try-intro">
+        <p>Try-it-yourself endpoint</p>
+        <h1>Paste coordinates.<br />Get match JSON.</h1>
+        <div class="browser-note">
+          <i></i>
+          Runs entirely in this browser. This URL serves a page, not a server-side API.
+        </div>
+      </section>
+
+      <section class="try-grid">
+        <article class="request-panel">
+          <div class="panel-heading">
+            <div><span>Input</span><h2>Coordinate array</h2></div>
+            <button id="load-example" class="small-action" type="button">Load Oakland</button>
+          </div>
+          <label for="coordinates">JSON · [longitude, latitude]</label>
+          <textarea id="coordinates" spellcheck="false"></textarea>
+          <button id="run-match" class="run-button" type="button">Run map match →</button>
+          <div class="secondary-actions">
+            <button id="copy-url" type="button">Copy request URL</button>
+            <span>For short traces only</span>
+          </div>
+          <p id="try-status" class="try-status" role="status" aria-live="polite">
+            Ready with the Oakland example.
+          </p>
+        </article>
+
+        <article class="response-panel">
+          <div class="panel-heading">
+            <div><span>Output</span><h2>stateless-router/map-match/v1</h2></div>
+            <button id="copy-json" class="small-action dark" type="button" disabled>Copy JSON</button>
+          </div>
+          <div id="try-summary" class="try-summary" hidden>
+            <div><b id="try-matched">—</b><span>matched</span></div>
+            <div><b id="try-edges">—</b><span>edges</span></div>
+            <div><b id="try-nodes">—</b><span>nodes</span></div>
+            <div><b id="try-time">—</b><span>elapsed</span></div>
+          </div>
+          <pre id="response" tabindex="0">{
+  "status": "waiting_for_request"
+}</pre>
+        </article>
+      </section>
+
+      <footer>
+        <span>Query form: <code>?coordinates=[[-122.27,37.8],...]</code></span>
+        <a href="../map-match-api-v1/">Detailed contract console ↗</a>
+      </footer>
+    </main>
+    <script type="module" src="/src/try-page.ts"></script>
+  </body>
+</html>

@@ -20,9 +20,10 @@ npm run dev
 Then open the local URL printed by Vite. Load the included downtown Oakland trace,
 or click points onto the map, and choose **Call matcher API**.
 
-The project index is at `/`; the map is at `/map-match-v1/`; and the JSON
-request console/page endpoint is at `/map-match-api-v1/`. The included example
-and initial map view are centered on downtown Oakland.
+The project index is at `/`; the map is at `/map-match-v1/`; the lightweight
+try-it page is at `/run-map-match/`; and the detailed contract console/page
+endpoint is at `/map-match-api-v1/`. The included example and initial map view
+are centered on downtown Oakland.
 
 ## What happens in the browser
 
@@ -87,6 +88,12 @@ The endpoint replies with `stateless-router:progress:v1`, followed by either
 `stateless-router:response:v1` or `stateless-router:error:v1` using the same
 request ID. Because this is a static page protocol rather than an HTTP server,
 it is consumed through an iframe—not with `curl` or a server-side POST.
+
+For interactive testing, `/run-map-match/` accepts a coordinate array in its
+textarea. Short traces can also be passed as a URL-encoded JSON array in the
+`coordinates` query parameter; the page runs them automatically and shows the
+response. This is a shareable browser execution URL, not a dynamic HTTP JSON
+endpoint.
 
 This is HMM-shaped rather than a calibrated probabilistic HMM: its emission and
 transition values are hand-tuned costs. One-way candidates use the direction of
