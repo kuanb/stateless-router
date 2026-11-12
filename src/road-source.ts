@@ -24,6 +24,15 @@ export interface RoadFetchResult {
 
 const DRIVABLE_KINDS = new Set(["highway", "major_road", "minor_road"]);
 
+export function roadLineId(
+  tileKey: string,
+  sourceId: string,
+  featureIndex: number,
+  lineIndex: number,
+): string {
+  return `${tileKey}:${sourceId}:${featureIndex}:${lineIndex}`;
+}
+
 function isDrivable(properties: Record<string, RoadProperty>): boolean {
   const kind = String(properties.kind ?? "");
   const detail = String(properties.kind_detail ?? "");
@@ -152,7 +161,9 @@ export class ProtomapsRoadSource {
           ),
         );
         roads.push({
-          id: `${key}:${sourceId}:${lineIndex}`,
+          // A source feature ID is not unique within a vector-tile layer. Keep
+          // the feature index so separate pieces cannot collapse during trim.
+          id: roadLineId(key, sourceId, featureIndex, lineIndex),
           continuityKey: `${kindDetail}:${routeIdentity}`,
           coordinates,
           properties: feature.properties,

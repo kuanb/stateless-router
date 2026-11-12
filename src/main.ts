@@ -211,7 +211,7 @@ async function runMatch(): Promise<void> {
           radiusMeters,
           candidateCount: Number(candidateCountInput.value),
           sequenceAware: sequenceInput.checked,
-          edgePaddingMeters: 32,
+          edgePaddingMeters: 0,
         },
       },
       (progress) => setStatus(progress.message),

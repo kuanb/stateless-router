@@ -115,8 +115,10 @@ export function selectedRoadFragments(
     const positions = candidates.map((candidate) =>
       candidateDistance(candidate, cumulative, road.coordinates),
     );
+    // A one-probe road still needs two coordinates to be a valid LineString,
+    // but keep that fallback sub-metre instead of drawing a visible overshoot.
     const effectivePadding =
-      positions.length === 1 ? Math.max(paddingMeters, 8) : paddingMeters;
+      positions.length === 1 ? Math.max(paddingMeters, 0.5) : paddingMeters;
     const start = Math.max(0, Math.min(...positions) - effectivePadding);
     const end = Math.min(totalLength, Math.max(...positions) + effectivePadding);
     const coordinates = sliceLine(road.coordinates, cumulative, start, end);

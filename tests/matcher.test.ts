@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { LngLat } from "../src/geo";
+import { distanceMeters, type LngLat } from "../src/geo";
 import { matchTrace, type MatchResult } from "../src/matcher";
 import { selectedRoadFragments } from "../src/road-fragments";
 import type { RoadLine } from "../src/road-source";
@@ -128,4 +128,41 @@ test("trims selected road overlays around the matched positions", () => {
   assert.equal(untrimmed.coordinates.at(-1)?.[0], 0.01);
   assert.ok((trimmed.coordinates[0]?.[0] ?? 0) > 0.004);
   assert.ok((trimmed.coordinates.at(-1)?.[0] ?? 1) < 0.006);
+});
+
+test("keeps a zero-padding single-probe fragment visually degenerate", () => {
+  const selected = road(
+    "single-probe-road",
+    [
+      [0, 0],
+      [0.01, 0],
+    ],
+    "",
+  );
+  const result: MatchResult = {
+    matches: [
+      {
+        observationIndex: 0,
+        observation: [0.005, 0],
+        candidate: {
+          observationIndex: 0,
+          road: selected,
+          point: [0.005, 0],
+          distance: 0,
+          bearing: 90,
+          segmentIndex: 1,
+          segmentT: 0.5,
+          travelBearing: 90,
+          onewayDirection: 0,
+          emissionCost: 0,
+        },
+      },
+    ],
+    selectedRoads: [selected],
+    meanErrorMeters: 0,
+  };
+
+  const [fragment] = selectedRoadFragments(result, true, 0);
+  assert.ok(fragment);
+  assert.ok(distanceMeters(fragment.coordinates[0]!, fragment.coordinates.at(-1)!) < 1.1);
 });
