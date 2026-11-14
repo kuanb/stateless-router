@@ -11,6 +11,11 @@ export interface MatchOptions {
   radiusMeters: number;
   candidateCount: number;
   sequenceAware: boolean;
+  networkDistance?: (
+    previous: Candidate,
+    current: Candidate,
+    maximumDistance: number,
+  ) => number | null;
 }
 
 export interface Candidate {
@@ -124,13 +129,21 @@ function transitionCost(
   current: Candidate,
   previousObservation: LngLat,
   currentObservation: LngLat,
+  options: MatchOptions,
 ): number {
   const observedStep = distanceMeters(previousObservation, currentObservation);
   const matchedStep = distanceMeters(previous.point, current.point);
+  const networkStep = options.networkDistance?.(
+    previous,
+    current,
+    Math.min(1_500, Math.max(180, observedStep * 3 + 50)),
+  );
+  const effectiveMatchedStep = networkStep ?? matchedStep;
   const normalizedStretch =
-    Math.abs(matchedStep - observedStep) / Math.max(25, observedStep);
+    Math.abs(effectiveMatchedStep - observedStep) / Math.max(25, observedStep);
   const roadSwitch = previous.road.continuityKey === current.road.continuityKey ? 0 : 0.55;
-  const implausibleJump = matchedStep > observedStep * 2.6 + 90 ? 5 : 0;
+  const implausibleJump = effectiveMatchedStep > observedStep * 2.6 + 90 ? 5 : 0;
+  const disconnected = options.networkDistance && networkStep === null ? 12 : 0;
   const snappedMotionBearing = bearingDegrees(previous.point, current.point);
   const departureMismatch = bearingDifference(
     previous.travelBearing,
@@ -155,6 +168,7 @@ function transitionCost(
     normalizedStretch * 1.7 +
     roadSwitch +
     implausibleJump +
+    disconnected +
     directionPenalty +
     wrongWayUTurn
   );
@@ -165,9 +179,9 @@ function solveBlock(
   candidateSets: Candidate[][],
   start: number,
   end: number,
-  sequenceAware: boolean,
+  options: MatchOptions,
 ): Candidate[] {
-  if (!sequenceAware) {
+  if (!options.sequenceAware) {
     return candidateSets.slice(start, end).map((set) => set[0]).filter(Boolean) as Candidate[];
   }
 
@@ -195,6 +209,7 @@ function solveBlock(
             candidate,
             points[pointIndex - 1] ?? previous.point,
             points[pointIndex] ?? candidate.point,
+            options,
           ) +
           candidate.emissionCost;
         if (total < bestCost) {
@@ -258,7 +273,7 @@ export function matchTrace(
       candidateSets,
       blockStart,
       blockEnd,
-      options.sequenceAware,
+      options,
     )) {
       chosenByIndex.set(candidate.observationIndex, candidate);
     }

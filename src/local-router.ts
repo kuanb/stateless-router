@@ -10,7 +10,9 @@ export interface InferredRouteEdge {
   distanceMeters: number;
   sourceRoadIds: string[];
   provenance: "inferred_transition";
-  confidence: "geometry_only";
+  confidence: "geometry_only" | "overture_topology";
+  startNodeId?: string;
+  endNodeId?: string;
   geometry: GeoJSON.LineString;
 }
 

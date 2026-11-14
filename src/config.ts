@@ -3,6 +3,13 @@ export const PMTILES_URL =
 
 export const TILE_ZOOM = 15;
 
+export const OVERTURE_RELEASE = "2026-10-21.0";
+
+export const OVERTURE_PMTILES_URL =
+  `https://overturemaps-extras-us-west-2.s3.us-west-2.amazonaws.com/tiles/${OVERTURE_RELEASE}/transportation.pmtiles`;
+
+export const OVERTURE_TILE_ZOOM = 14;
+
 export const DEMO_TRACE: [number, number][] = [
   [-122.2727, 37.8009],
   [-122.27235, 37.80175],
@@ -15,4 +22,12 @@ export const DEMO_TRACE: [number, number][] = [
   [-122.26818, 37.80313],
   [-122.26743, 37.8028],
   [-122.26669, 37.80248],
+];
+
+// The Overture example omits one observation whose implied movement conflicts
+// with the release's directional access graph. The remaining trace is fully
+// connected through explicit transportation connectors.
+export const OVERTURE_DEMO_TRACE: [number, number][] = [
+  ...DEMO_TRACE.slice(0, 5),
+  ...DEMO_TRACE.slice(6),
 ];

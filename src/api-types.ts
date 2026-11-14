@@ -28,8 +28,9 @@ export interface MapMatchProgress {
 export interface ApiNode {
   id: string;
   coordinate: LngLat;
-  kind: "fragment_endpoint" | "inferred_route_endpoint";
+  kind: "fragment_endpoint" | "inferred_route_endpoint" | "overture_connector";
   intersectionInferred: false;
+  sourceId?: string;
 }
 
 export interface ApiEdgeProperties {
@@ -39,6 +40,9 @@ export interface ApiEdgeProperties {
   ref: string | null;
   oneway: string | null;
   access: string | null;
+  segmentId?: string | null;
+  startConnectorId?: string | null;
+  endConnectorId?: string | null;
 }
 
 export interface ApiEdge {
@@ -48,7 +52,7 @@ export interface ApiEdge {
   endNode: string;
   direction: "forward" | "bidirectional";
   geometryOrder: "matched_travel";
-  topology: "unresolved";
+  topology: "unresolved" | "overture_connectors";
   geometry: GeoJSON.LineString;
   sourceGeometry: GeoJSON.LineString;
   properties: ApiEdgeProperties;
@@ -73,7 +77,7 @@ export interface ApiInferredEdge {
   distanceMeters: number;
   sourceRoadIds: string[];
   provenance: "inferred_transition";
-  confidence: "geometry_only";
+  confidence: "geometry_only" | "overture_topology";
   geometry: GeoJSON.LineString;
 }
 
@@ -89,8 +93,10 @@ export interface MapMatchResponse {
   request: ResolvedMapMatchRequest;
   source: {
     kind: "pmtiles";
+    network: "protomaps_geometry" | "overture_transportation";
     tileZoom: number;
     archive: string;
+    release?: string;
   };
   probes: ApiProbeMatch[];
   nodes: ApiNode[];
@@ -99,7 +105,7 @@ export interface MapMatchResponse {
   route: {
     edgeSequence: string[];
     inferredEdgeSequence: string[];
-    connectivityVerified: false;
+    connectivityVerified: boolean;
     connectivityInferred: boolean;
     distanceMeters: number;
     geometry: GeoJSON.MultiLineString | null;

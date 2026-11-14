@@ -161,6 +161,73 @@ test("serializes inferred connectors separately with endpoint nodes and provenan
   );
 });
 
+test("serializes Overture spans with connector nodes and stable segment identity", () => {
+  const overtureRoad: RoadLine = {
+    ...selectedRoad,
+    id: "overture:segment-1:c0:c1",
+    continuityKey: "overture:segment-1",
+    properties: {
+      ...selectedRoad.properties,
+      overture_segment_id: "segment-1",
+      start_connector_id: "c0",
+      end_connector_id: "c1",
+    },
+    topology: {
+      network: "overture_transportation",
+      segmentId: "segment-1",
+      startConnectorId: "c0",
+      endConnectorId: "c1",
+      startConnectorStable: true,
+      endConnectorStable: true,
+      forwardAllowed: true,
+      backwardAllowed: false,
+      prohibitedTransitions: null,
+    },
+  };
+  const request = resolveMapMatchRequest({
+    coordinates: [[0.002, 0], [0.008, 0]],
+  });
+  const match: MatchResult = {
+    matches: [
+      {
+        observationIndex: 0,
+        observation: request.coordinates[0] as LngLat,
+        candidate: { ...candidate(0, [0.002, 0], 0.2), road: overtureRoad },
+      },
+      {
+        observationIndex: 1,
+        observation: request.coordinates[1] as LngLat,
+        candidate: { ...candidate(1, [0.008, 0], 0.8), road: overtureRoad },
+      },
+    ],
+    selectedRoads: [overtureRoad],
+    meanErrorMeters: 0,
+  };
+  const fetched: RoadFetchResult = {
+    roads: [overtureRoad],
+    tileCount: 1,
+    decodedTiles: 1,
+    cacheHits: 0,
+    elapsedMs: 1,
+  };
+
+  const response = buildMapMatchResponse(request, match, fetched, 2, {
+    kind: "pmtiles",
+    network: "overture_transportation",
+    tileZoom: 14,
+    archive: "https://example.com/transportation.pmtiles",
+    release: "test",
+  });
+
+  assert.equal(response.edges[0]?.id, `edge:${overtureRoad.id}`);
+  assert.equal(response.edges[0]?.topology, "overture_connectors");
+  assert.equal(response.edges[0]?.startNode, "overture:connector:c0");
+  assert.equal(response.edges[0]?.endNode, "overture:connector:c1");
+  assert.equal(response.edges[0]?.properties.segmentId, "segment-1");
+  assert.equal(response.nodes.every((node) => node.kind === "overture_connector"), true);
+  assert.equal(response.route.connectivityVerified, true);
+});
+
 test("validates the page API request before fetching tiles", () => {
   assert.throws(
     () => resolveMapMatchRequest({ coordinates: [[-122.27, 37.8]] }),

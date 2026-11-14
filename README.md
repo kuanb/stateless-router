@@ -1,9 +1,8 @@
 # stateless-router
 
-A browser-only experiment in map matching directly against a remote Protomaps
-PMTiles archive. The app range-fetches z15 vector tiles around a trace, decodes
-the `roads` layer, generates nearby road candidates, and chooses a locally
-consistent sequence of snaps.
+Browser-only experiments in map matching directly against remote PMTiles
+archives. The original app range-fetches Protomaps z15 road geometry. A separate
+Overture graph mode range-fetches z14 transportation segments and connectors.
 
 It builds an ephemeral geometry graph from the fetched road lines to infer
 short connectors between direct matches. That graph is deliberately kept
@@ -21,10 +20,33 @@ npm run dev
 Then open the local URL printed by Vite. Load the included downtown Oakland trace,
 or click points onto the map, and choose **Call matcher API**.
 
-The project index is at `/`; the map is at `/map-match-v1/`; the lightweight
-try-it page is at `/run-map-match/`; and the detailed contract console/page
-endpoint is at `/map-match-api-v1/`. The included example and initial map view
-are centered on downtown Oakland.
+The project index is at `/`; the original map is at `/map-match-v1/`; the
+Overture graph map is at `/map-match-overture-v1/`; and their page-backed
+endpoints are at `/map-match-api-v1/` and `/map-match-api-overture-v1/`.
+The lightweight original try-it page remains at `/run-map-match/`. The included
+examples and initial map view are centered on downtown Oakland.
+
+## Overture transportation graph mode
+
+The Overture page is intentionally separate so existing links and blog embeds
+continue to use the original Protomaps matcher. It reads the official Overture
+transportation PMTiles release and decodes the `segment` and `connector` layers.
+
+Unlike the original geometry-derived graph, this mode:
+
+1. Splits transportation segments at their declared connector references.
+2. Returns direct edges with their Overture segment ID and connector nodes.
+3. Uses network distance while choosing the Viterbi candidate sequence.
+4. Routes missing spans only through shared connector IDs.
+5. Enforces unconditional directional access restrictions.
+
+The response marks these edges with `topology: "overture_connectors"` and
+inferred spans with `confidence: "overture_topology"`. Fully resolved traces set
+`route.connectivityVerified` to `true`. Conditional access rules and
+`prohibited_transitions` are present in the tiles but are not yet evaluated, so
+this remains an experimental matcher rather than a production turn-by-turn
+router. The public archive URL is pinned to a dated Overture release and should
+be advanced when the published tile release changes.
 
 ## What happens in the browser
 
@@ -72,10 +94,11 @@ Requests use this shape:
 }
 ```
 
-Responses identify `probes`, direct-match `edges`, geometry-only
-`inferredEdges`, and `nodes`, plus GeoJSON `render.edges`,
+Responses identify `probes`, direct-match `edges`, `inferredEdges`, and `nodes`,
+plus GeoJSON `render.edges`,
 `render.inferredEdges`, and `render.matches` FeatureCollections. Every direct
-and inferred edge has explicit `startNode` and `endNode` fields. Nodes are
+and inferred edge has explicit `startNode` and `endNode` fields. In the original
+Protomaps response, nodes are
 labeled as `fragment_endpoint` or `inferred_route_endpoint`, always with
 `intersectionInferred: false`: they are stable output endpoints, not a claim
 that the basemap contains authoritative routing topology.
@@ -124,7 +147,7 @@ or extract for production use.
 
 Pushes to `main` build and deploy the project using
 `.github/workflows/deploy-pages.yml`. The workflow runs the tests, builds both
-HTML entry points, and publishes `dist/` as a GitHub Pages artifact.
+matcher variants and endpoints, and publishes `dist/` as a GitHub Pages artifact.
 
 ## Commands
 

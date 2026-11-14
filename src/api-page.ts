@@ -10,8 +10,8 @@ import type {
   MatchRpcRequestMessage,
   MatchRpcResponseMessage,
 } from "./api-types";
-import { DEMO_TRACE } from "./config";
-import { BrowserMapMatchService } from "./map-match-service";
+import { DEMO_TRACE, OVERTURE_DEMO_TRACE } from "./config";
+import { BrowserMapMatchService, type MapMatchNetworkMode } from "./map-match-service";
 
 const $ = <T extends HTMLElement>(selector: string): T => {
   const element = document.querySelector<T>(selector);
@@ -19,7 +19,9 @@ const $ = <T extends HTMLElement>(selector: string): T => {
   return element;
 };
 
-const service = new BrowserMapMatchService();
+const networkMode: MapMatchNetworkMode =
+  document.documentElement.dataset.network === "overture" ? "overture" : "protomaps";
+const service = new BrowserMapMatchService(networkMode);
 const requestInput = $("#request-json") as HTMLTextAreaElement;
 const responseOutput = $("#response-json");
 const runButton = $("#run-request") as HTMLButtonElement;
@@ -30,7 +32,7 @@ const resultSummary = $("#result-summary");
 let lastResponse: MapMatchResponse | null = null;
 
 const exampleRequest: MapMatchRequest = {
-  coordinates: DEMO_TRACE,
+  coordinates: networkMode === "overture" ? OVERTURE_DEMO_TRACE : DEMO_TRACE,
   options: {
     radiusMeters: 70,
     candidateCount: 6,

@@ -14,7 +14,7 @@ interface PendingRequest {
 
 // Bump when the page-backed service implementation changes. GitHub Pages can
 // cache HTML for ten minutes, so the iframe URL must identify its code version.
-const ENDPOINT_PAGE_VERSION = "route-inference-v3";
+const ENDPOINT_PAGE_VERSION = "overture-graph-v1";
 
 export class MapMatchPageClient {
   private readonly iframe: HTMLIFrameElement;

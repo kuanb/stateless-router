@@ -11,11 +11,14 @@ import type {
 } from "maplibre-gl";
 import { PMTiles, Protocol } from "pmtiles";
 import type { MapMatchResponse } from "./api-types";
-import { DEMO_TRACE, PMTILES_URL } from "./config";
+import { DEMO_TRACE, OVERTURE_DEMO_TRACE, PMTILES_URL } from "./config";
 import type { LngLat } from "./geo";
 import { MapMatchPageClient } from "./map-match-page-client";
 
 type InteractionMode = "draw" | "pan";
+
+const overtureMode = document.documentElement.dataset.network === "overture";
+const demoTrace = overtureMode ? OVERTURE_DEMO_TRACE : DEMO_TRACE;
 
 const $ = <T extends HTMLElement>(selector: string): T => {
   const element = document.querySelector<T>(selector);
@@ -47,7 +50,10 @@ maplibregl.addProtocol("pmtiles", protocol.tile);
 const archive = new PMTiles(PMTILES_URL);
 protocol.add(archive);
 const matcherApi = new MapMatchPageClient(
-  new URL("../map-match-api-v1/", window.location.href),
+  new URL(
+    overtureMode ? "../map-match-api-overture-v1/" : "../map-match-api-v1/",
+    window.location.href,
+  ),
 );
 
 const style: StyleSpecification = {
@@ -180,9 +186,14 @@ function showResult(response: MapMatchResponse): void {
   $("#error-metric").textContent = `${response.stats.meanErrorMeters.toFixed(1)} m`;
   $("#tiles-metric").textContent = String(response.stats.tilesRequested);
   $("#time-metric").textContent = `${Math.round(response.stats.elapsedMs)} ms`;
-  $("#result-mode").textContent = response.request.options.sequenceAware
-    ? "sequence-aware"
-    : "nearest";
+  const isOverture = response.source.network === "overture_transportation";
+  $("#result-mode").textContent = isOverture
+    ? response.route.connectivityVerified
+      ? "topology connected"
+      : "connector graph"
+    : response.request.options.sequenceAware
+      ? "sequence-aware"
+      : "nearest";
   results.hidden = false;
 
   const cacheMessage = response.stats.tileCacheHits > 0
@@ -194,8 +205,11 @@ function showResult(response: MapMatchResponse): void {
   const unresolvedMessage = unresolvedTransitions > 0
     ? ` · ${unresolvedTransitions} unresolved transition${unresolvedTransitions === 1 ? "" : "s"}`
     : "";
+  const topologyMessage = isOverture && response.route.connectivityVerified
+    ? " · connector topology verified"
+    : "";
   setStatus(
-    `API returned ${response.edges.length} matched edges and ${response.inferredEdges.length} inferred connectors for ${response.stats.matched}/${response.stats.total} probes${unresolvedMessage}${cacheMessage}.`,
+    `API returned ${response.edges.length} matched edges and ${response.inferredEdges.length} inferred connectors for ${response.stats.matched}/${response.stats.total} probes${topologyMessage}${unresolvedMessage}${cacheMessage}.`,
     response.stats.matched === response.stats.total ? "success" : "normal",
   );
   lastResult = response;
@@ -343,7 +357,7 @@ drawModeButton.addEventListener("click", () => setMode("draw"));
 panModeButton.addEventListener("click", () => setMode("pan"));
 
 loadDemoButton.addEventListener("click", () => {
-  observations = DEMO_TRACE.map((point) => [...point]);
+  observations = demoTrace.map((point) => [...point]);
   clearResultLayers();
   updateRawTrace();
   fitObservations();

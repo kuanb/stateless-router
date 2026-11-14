@@ -3,7 +3,19 @@ import Pbf from "pbf";
 import { PMTiles } from "pmtiles";
 import { bufferedTileKeys, tilePointToLngLat, type LngLat } from "./geo";
 
-type RoadProperty = string | number | boolean | null | undefined;
+export type RoadProperty = string | number | boolean | null | undefined;
+
+export interface OvertureRoadTopology {
+  network: "overture_transportation";
+  segmentId: string;
+  startConnectorId: string;
+  endConnectorId: string;
+  startConnectorStable: boolean;
+  endConnectorStable: boolean;
+  forwardAllowed: boolean;
+  backwardAllowed: boolean;
+  prohibitedTransitions: string | null;
+}
 
 export interface RoadLine {
   id: string;
@@ -12,6 +24,7 @@ export interface RoadLine {
   properties: Record<string, RoadProperty>;
   kind: string;
   kindDetail: string;
+  topology?: OvertureRoadTopology;
 }
 
 export interface RoadFetchResult {
@@ -20,6 +33,15 @@ export interface RoadFetchResult {
   decodedTiles: number;
   cacheHits: number;
   elapsedMs: number;
+}
+
+export interface RoadSource {
+  roadsAround(
+    points: LngLat[],
+    radiusMeters: number,
+    onProgress?: (finished: number, total: number) => void,
+  ): Promise<RoadFetchResult>;
+  clear(): void;
 }
 
 const DRIVABLE_KINDS = new Set(["highway", "major_road", "minor_road"]);
@@ -43,7 +65,7 @@ function isDrivable(properties: Record<string, RoadProperty>): boolean {
   return properties.access !== "no";
 }
 
-async function mapWithConcurrency<T, R>(
+export async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
   worker: (item: T, index: number) => Promise<R>,

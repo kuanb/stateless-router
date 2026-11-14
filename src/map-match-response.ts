@@ -2,6 +2,7 @@ import { PMTILES_URL, TILE_ZOOM } from "./config";
 import { bearingDegrees, bearingDifference, type LngLat } from "./geo";
 import { inferRoute } from "./local-router";
 import type { MatchResult } from "./matcher";
+import { inferOvertureRoute } from "./overture-router";
 import { selectedRoadFragments } from "./road-fragments";
 import type { RoadFetchResult, RoadLine } from "./road-source";
 import type {
@@ -188,20 +189,30 @@ export function buildMapMatchResponse(
   match: MatchResult,
   fetch: RoadFetchResult,
   elapsedMs: number,
+  source: MapMatchResponse["source"] = {
+    kind: "pmtiles",
+    network: "protomaps_geometry",
+    tileZoom: TILE_ZOOM,
+    archive: PMTILES_URL,
+  },
 ): MapMatchResponse {
+  const overture = source.network === "overture_transportation";
   const fragments = selectedRoadFragments(
     match,
-    true,
+    !overture,
     request.options.edgePaddingMeters,
   );
   const inferredRoute = request.options.inferRoute
-    ? inferRoute(match, fetch.roads, fragments)
+    ? overture
+      ? inferOvertureRoute(match, fetch.roads)
+      : inferRoute(match, fetch.roads, fragments)
     : { edges: [], transitions: [], geometry: null, distanceMeters: 0 };
   const nodesById = new Map<string, ApiNode>();
   const edgeIdByRoad = new Map<string, string>();
 
   const edges = fragments.map((fragment, index): ApiEdge => {
     const direction = oneWayDirection(fragment.road);
+    const topology = fragment.road.topology;
     const firstRoadMatch = match.matches.find(
       (matched) => matched?.candidate.road.id === fragment.road.id,
     );
@@ -223,21 +234,41 @@ export function buildMapMatchResponse(
       : fragment.road.coordinates;
     const start = geometryCoordinates[0] as LngLat;
     const end = geometryCoordinates[geometryCoordinates.length - 1] as LngLat;
-    const startNode = nodeId(start);
-    const endNode = nodeId(end);
-    const id = `edge:${String(index + 1).padStart(3, "0")}`;
+    const sourceStartConnector = reverse
+      ? topology?.endConnectorId
+      : topology?.startConnectorId;
+    const sourceEndConnector = reverse
+      ? topology?.startConnectorId
+      : topology?.endConnectorId;
+    const sourceStartStable = reverse
+      ? topology?.endConnectorStable
+      : topology?.startConnectorStable;
+    const sourceEndStable = reverse
+      ? topology?.startConnectorStable
+      : topology?.endConnectorStable;
+    const startNode = sourceStartConnector
+      ? `overture:connector:${sourceStartConnector}`
+      : nodeId(start);
+    const endNode = sourceEndConnector
+      ? `overture:connector:${sourceEndConnector}`
+      : nodeId(end);
+    const id = topology
+      ? `edge:${fragment.road.id}`
+      : `edge:${String(index + 1).padStart(3, "0")}`;
 
     nodesById.set(startNode, {
       id: startNode,
       coordinate: start,
-      kind: "fragment_endpoint",
+      kind: sourceStartStable ? "overture_connector" : "fragment_endpoint",
       intersectionInferred: false,
+      ...(sourceStartConnector ? { sourceId: sourceStartConnector } : {}),
     });
     nodesById.set(endNode, {
       id: endNode,
       coordinate: end,
-      kind: "fragment_endpoint",
+      kind: sourceEndStable ? "overture_connector" : "fragment_endpoint",
       intersectionInferred: false,
+      ...(sourceEndConnector ? { sourceId: sourceEndConnector } : {}),
     });
     edgeIdByRoad.set(fragment.road.id, id);
 
@@ -248,7 +279,7 @@ export function buildMapMatchResponse(
       endNode,
       direction: direction === 0 ? "bidirectional" : "forward",
       geometryOrder: "matched_travel",
-      topology: "unresolved",
+      topology: topology ? "overture_connectors" : "unresolved",
       geometry: { type: "LineString", coordinates: geometryCoordinates },
       sourceGeometry: { type: "LineString", coordinates: sourceCoordinates },
       properties: {
@@ -258,6 +289,13 @@ export function buildMapMatchResponse(
         ref: stringProperty(fragment.road, "ref"),
         oneway: stringProperty(fragment.road, "oneway"),
         access: stringProperty(fragment.road, "access"),
+        ...(topology
+          ? {
+              segmentId: topology.segmentId,
+              startConnectorId: sourceStartConnector ?? null,
+              endConnectorId: sourceEndConnector ?? null,
+            }
+          : {}),
       },
     };
   });
@@ -265,22 +303,34 @@ export function buildMapMatchResponse(
   const inferredEdges = inferredRoute.edges.map((edge) => {
     const start = edge.geometry.coordinates[0] as LngLat;
     const end = edge.geometry.coordinates[edge.geometry.coordinates.length - 1] as LngLat;
-    const startNode = nodeId(start);
-    const endNode = nodeId(end);
+    const startNode = edge.startNodeId ?? nodeId(start);
+    const endNode = edge.endNodeId ?? nodeId(end);
+    const startIsOverture = startNode.startsWith("overture:connector:");
+    const endIsOverture = endNode.startsWith("overture:connector:");
     if (!nodesById.has(startNode)) {
       nodesById.set(startNode, {
         id: startNode,
         coordinate: start,
-        kind: "inferred_route_endpoint",
+        kind: startIsOverture && !startNode.includes(":clip:")
+          ? "overture_connector"
+          : "inferred_route_endpoint",
         intersectionInferred: false,
+        ...(startIsOverture
+          ? { sourceId: startNode.slice("overture:connector:".length) }
+          : {}),
       });
     }
     if (!nodesById.has(endNode)) {
       nodesById.set(endNode, {
         id: endNode,
         coordinate: end,
-        kind: "inferred_route_endpoint",
+        kind: endIsOverture && !endNode.includes(":clip:")
+          ? "overture_connector"
+          : "inferred_route_endpoint",
         intersectionInferred: false,
+        ...(endIsOverture
+          ? { sourceId: endNode.slice("overture:connector:".length) }
+          : {}),
       });
     }
     return { ...edge, startNode, endNode };
@@ -306,11 +356,7 @@ export function buildMapMatchResponse(
   return {
     schema: "stateless-router/map-match/v1",
     request,
-    source: {
-      kind: "pmtiles",
-      tileZoom: TILE_ZOOM,
-      archive: PMTILES_URL,
-    },
+    source,
     probes,
     nodes: [...nodesById.values()],
     edges,
@@ -318,7 +364,10 @@ export function buildMapMatchResponse(
     route: {
       edgeSequence,
       inferredEdgeSequence: inferredEdges.map((edge) => edge.id),
-      connectivityVerified: false,
+      connectivityVerified:
+        overture &&
+        inferredRoute.transitions.length > 0 &&
+        inferredRoute.transitions.every((transition) => transition.resolved),
       connectivityInferred:
         inferredRoute.transitions.length > 0 &&
         inferredRoute.transitions.every((transition) => transition.resolved),
@@ -359,15 +408,26 @@ export function buildMapMatchResponse(
       elapsedMs,
     },
     warnings: [
-      "Edge endpoints are synthetic fragment endpoints, not inferred road-network intersections.",
-      "This geometry-only match does not guarantee connected or legally routable travel.",
-      ...(request.options.inferRoute
+      ...(overture
+        ? [
+            "Direct edges and nodes use Overture segment and connector topology; clipped tile-boundary endpoints remain synthetic.",
+            "Unconditional directional access restrictions are enforced, but conditional access and prohibited-transition sequences are not yet evaluated.",
+          ]
+        : [
+            "Edge endpoints are synthetic fragment endpoints, not inferred road-network intersections.",
+            "This geometry-only match does not guarantee connected or legally routable travel.",
+          ]),
+      ...(request.options.inferRoute && !overture
         ? [
             "Inferred route edges come from a temporary geometry graph; they do not include turn restrictions or verified intersection topology.",
           ]
         : []),
       ...(inferredRoute.transitions.some((transition) => !transition.resolved)
-        ? ["Some transitions could not be connected using the fetched road geometry."]
+        ? [
+            overture
+              ? "Some transitions could not be connected through the fetched Overture connector graph."
+              : "Some transitions could not be connected using the fetched road geometry.",
+          ]
         : []),
     ],
   };
